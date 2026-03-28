@@ -1,0 +1,735 @@
+---
+title: "Utah rabies data analysis report"
+author: "Nathanael Pennock"
+date: "2025-10-29"  
+output: 
+  html_document:
+    theme: yeti         
+    highlight: tango
+    toc: true
+    toc_float: true
+pdf_document:
+    number_sections: true
+---
+```{r setup1, include=FALSE}
+knitr::opts_chunk$set(
+  fig.align = "center",   # center all figures
+  out.width = "55%",      # make all figures the same width
+  fig.width = 8,          # controls figure size in inches
+  fig.height = 5,         # consistent aspect ratio
+  dpi = 300,              # high-quality output
+  echo = FALSE,           # optional: hide code for cleaner report
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+``` {r setup2, include=FALSE}
+
+library(readr)
+library(ggplot2)
+library (tidyverse)
+library(dplyr)
+library(tableone)
+library(table1)
+library(shiny)
+library(DT)
+library(furniture)
+library(kableExtra)
+library(leaflet) #mpas rendering 
+library(sf) # Special data 
+library(tigris) # Provides shape files 
+library(MMWRweek)
+library(scales) # pretty break 
+
+RabiesResultData_ForNateAnalysis_Sheet1 <- read_csv("RabiesResultData_ ForNateAnalysis  - Sheet1.csv")
+
+sum(!complete.cases(RabiesResultData_ForNateAnalysis_Sheet1[, c("Test_Results")]))
+
+Rdata<- RabiesResultData_ForNateAnalysis_Sheet1
+
+
+#renaming catagories 
+Rdata <- Rdata %>%
+  rename('Year'='Test Year')
+
+Rdata <- Rdata %>%
+  rename('Month'='Test Month') 
+
+Rdata <- Rdata %>%
+  rename('Type'='Animal_Type')
+Rdata <- Rdata %>%
+  rename('Species'='Bat_Species')
+
+#renaming variables 
+Rdata <- Rdata %>%
+  mutate(Test_Results = recode( Test_Results,
+                                'Not tested-skull damaged' = "Unsatisfactory",
+                                'unsatisfactory'= "Unsatisfactory",
+                                'Unsatisfactory ("desicated and dry, no identifiable brain")'= "Unsatisfactory",
+                                'Unsatisfactory ("petrified" very dried out)'= "Unsatisfactory",
+                                'unsatisfactory ("soupy, unidentifiable brain")'  = "Unsatisfactory",
+                                'Unsatisfactory (completely desiccated)' = "Unsatisfactory",
+                                'Unsatisfactory (head crushed and dry with no identifiable brain tissue)'  = "Unsatisfactory",
+                                'unsatisfactory (skull shattered and brain runny; no discenible cerebellum)' = "Unsatisfactory",
+                                'Unsatisfactory (specimen damaged, skull empty)' = "Unsatisfactory",
+                                'Unsatisfactory /cancelled' = "Unsatisfactory",
+                                'unsatisfactory specimen'  = "Unsatisfactory",
+                                'Unsatisfactory/cancelled'  = "Unsatisfactory",
+                                'Cancelled'  = "Unsatisfactory",
+                                'Cancelled (specimen damaged)'  = "Unsatisfactory",
+                                'Cancelled (unsatisfactory specimen)' = "Unsatisfactory",
+                                'Inconclusive both at UPHL and CDC' = "Unsatisfactory",
+                                "Indeterminate" = "Unsatisfactory",
+                                'No brain available to test'= "Unsatisfactory",
+                                "Not tested-skull damaged" = "Unsatisfactory",
+                                'negative' = "Negative",
+                                'Negaitve' = "Negative",
+                                'POSITIVE' = 'Positive',
+                                'Cancelled (decomposed)'= "Unsatisfactory"
+                                
+  ))
+
+
+Rdata <- Rdata %>% 
+  mutate(Type = recode(Type,
+                          "bat" = "Bat",
+                          "cat" = "Cat",
+                          "Kitten" = "Cat",
+                          "dog" = "Dog",
+                          "Dog (Mastiff/Pitbull)" = "Dog",
+                          "Racoon" = "Other",
+                          "coyote" = "Coyote",
+                          "Minnk" = "Other",
+                          "Badger" = "Other",
+                          "Bear" = "Other",
+                          "Beaver" = "Other",
+                          "Bobcat" = "Other",
+                          "Cougar" = "Other",
+                          "Deer" = "Other",
+                          "Ferret" = "Other",
+                          "Ferrett" = "Other",
+                          "Gopher" = "Other",
+                          "Gopher/Mole" = "Other",
+                          "Horse" = "Other",
+                          "Llama" = "Other",
+                          "Marmot" = "Other",
+                          "Mountain Lion" = "Other",
+                          "Mouse" = "Other",
+                          "Muskrat" = "Other",
+                          "Otter" = "Other",
+                          "Prairie Dog" = "Other",
+                          "Prarie Dog" = "Other",
+                          "Rabbit" = "Other",
+                          "Rabit" = "Other",
+                          "Rat" = "Other",
+                          "Ringtail" = "Other",
+                          "Sheep" = "Other",
+                          "Squirrel" = "Other",
+                          "Stoat" = "Other",
+                          "Unknown" = "Other",
+                          "Vole" = "Other",
+                          "Weasel" = "Other",
+                          "Cow" = "Other",
+                          'Coyote' = "Other",
+                          'Mink' = 'Other',
+                          'coyote' = 'Other',
+                          'Fox' = 'Other common rabies vectors',
+                          'Raccoon'='Other common rabies vectors',
+                           'Skunk' = 'Other common rabies vectors'
+                       ))
+Rdata <- Rdata %>% 
+  mutate(Type = recode(Type,
+                       'Coyote' = 'Other'
+  ))
+
+Rdata <- Rdata %>% 
+  mutate(County = recode(County,
+                         '?' = 'Unknown/ Out of State',
+                         'Cedar City' = 'Iron',
+                         'Central' = 'Unknown/ Out of State',
+                         'Daivs' = 'Davis',
+                         'Garfeild' = 'Garfield',
+                         'Iron County'= "Iron",
+                         'Logan' = 'Cache',
+                         'Midvale' = 'Salt Lake',
+                         'Moab' = 'Grand',
+                         'Mt. Green'= 'Morgan',
+                         'Ogden' = 'Weber',
+                         'Out of State' = 'Unknown/ Out of State',
+                         'Sal t Lake' = 'Salt Lake',
+                         'Salt lake' = 'Salt Lake',
+                         'Salt Lake City' = 'Salt Lake',
+                         'Salt Lake County' = 'Salt Lake',
+                         'San Pete' = 'Sanpete',
+                         'SLC' = 'Salt Lake',
+                         'South Jordan' = 'Salt Lake',
+                         'Southwest' = 'Unknown/ Out of State',
+                         'Springville' = 'Utah',
+                         'Summmit' = 'Summit',
+                         'Uinta' = 'Uintah',
+                         'Unknown'  = 'Unknown/ Out of State',
+                         'Unknown (from TriCounty area)' = 'Unknown/ Out of State',
+                         'Unknown (within SW health district)' = 'Unknown/ Out of State',
+                         'Utah County' = 'Utah',
+                         'Washinton' = 'Washington',
+                         'Waynes' = 'Wayne',
+                         'Weber Morgan'= 'Weber',
+                         'Weber/Morgan' = 'Weber',
+                         'Out of State (AZ)' = 'Unknown/ Out of State',
+                         'utah' = 'Utah',
+                         'Peo' = 'Summit', 
+                         'Unknown/ out of state' = 'Unknown/ Out of State'
+  ))
+
+Rdata <- Rdata %>%
+  mutate(Species = recode( Species, 
+                              
+                              'big brown' = 'Big Brown',	
+                              'Big brown'	 = 'Big Brown',	
+                              'Big brown bat'	 = 'Big Brown',	
+                              'Big Brown bat'   = 'Big Brown',
+                              'Big Brown Bat' = 'Big Brown',
+                              'Eptesicus fuscus' = 'Big Brown',
+                              'Brown' = 'Big Brown',
+                              
+                              'Unable to identify - body damaged'='Unknown',
+                              'Unable to identify - body looks eaten'='Unknown', 
+                              'Unidentifiable'='Unknown',  
+                              'unknown'='Unknown',
+                              'Unknown - bat too torn apart to tell species'='Unknown',
+                              'Unknown - could not identify, half of body missing'='Unknown',	    
+                              'Unknown - either Myotis or Big Brown'='Unknown',
+                              'Unknown - too young to identify'='Unknown',
+                              'Unknown (bottom half of body missing)'='Unknown',
+                              'Unknown (too dessicated)'='Unknown',
+                              '-' = 'Unknown',
+                              '?' = 'Unknown',
+                              'Could not be identified (too dry)' = 'Unknown',	 
+                              'masticated Bat' = 'Unknown',
+                              
+                              'Antrozous pallidus' = 'Pallid',
+                              
+                              'Hoary Bat' = 'Hoary',
+                       
+                              
+                              'Wester pipistrelle' = 'Western Pipistrelle',
+                              'Pipstrellus hesperus' = 'Western Pipistrelle',
+                              'Pipstrelle' = 'Western Pipistrelle',
+                              'Pipistrelle'= 'Western Pipistrelle',
+                              
+                              'Big free-tailed'	='Big Free-tailed',
+                              'Big Free Tail'	='Big Free-tailed',
+                              
+                              "Townsend's Big Ear" = "Townsend's Big-eared",
+                              'Big Ear' = "Townsend's Big-eared",
+                              'Silver haired'	= 'Silver-haired',
+                              'Silver Haired' = 'Silver-haired',
+                              
+                              'Western Small Footed Bat'='Myotis',
+                              
+                              'Western red bat'='Western Red',
+                              'Western Red Bat' = 'Western Red'
+  ))
+Rdata <- Rdata %>%
+  mutate(Species = recode( Species,
+                          'Mexican Free-tail'       = 'Mexican free-tailed',
+                          'Mexican Free-Tailed'     = 'Mexican free-tailed',
+                          'Mexican free tail'       = 'Mexican free-tailed',
+                          'Mexican Free tail'       = 'Mexican free-tailed',
+                          'Brazilian free-tailed'   = 'Mexican free-tailed',
+                          'Tadrida brasiliensis'    = 'Mexican free-tailed',
+                          'Mexican Free-Tail' = 'Mexican free-tailed',
+                          'Mexican Free-tailed' = 'Mexican free-tailed',
+                          'Brazilian Free-tailed'= 'Mexican free-tailed',                                  'Mexican Free Tail'= 'Mexican free-tailed',
+                         'Mexican Free tailed' = 'Mexican free-tailed',
+                         ' Mexican Free Tailed' = 'Mexican free-tailed',
+                           'Mexican Free Tailed' = 'Mexican free-tailed'
+                          ))
+Rdata <- Rdata %>%
+  mutate(Month = recode( Month,
+                         '1' = 'January',
+                         '2' = 'February',  
+                         '3'= 'March', 
+                        '4' = 'April', 
+                         '5' = 'May', 
+                         '6' = 'June', 
+                         '7' = 'July', 
+                         '8' = 'August', 
+                         '9' = 'September', 
+                         '10' = 'October', 
+                         '11' = 'November', 
+                         '12' = 'December'
+  ))
+#reording month variables 
+Rdata$Month <- factor(Rdata$Month, levels=c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', "October" , 'November', 'December'))
+
+
+
+# making R read colomns as catragorical not countinous 
+
+Rdata$Year <- as.character(Rdata$Year)
+
+#changing missing na data to unknown
+Rdata <- Rdata %>%
+  mutate(Species = ifelse(is.na(Species), "Unknown", Species))
+
+
+
+#getting rid of NAs and missing variables 
+Rdata <- Rdata %>%
+  drop_na(  Type, Year, Month, Test_Results)
+
+#creating new data set with only positive results
+Positiveonly <- Rdata %>%
+  filter(Test_Results == 'Positive')
+
+#creating bat data
+
+batdata=filter(Rdata, Type == 'Bat' )
+
+Positive_bat = filter(Rdata, Type == 'Bat', Test_Results == 'Positive')
+
+
+
+#arranging the dates on batdata 
+
+Positive_bat %>%
+  arrange(Date_Submitted)
+
+#reordering counties table 1 
+ Rdata$County <- factor(
+          Rdata$County,
+          levels = c(
+            "Bear River",
+            "Beaver",
+            "Box Elder",
+            "Cache",
+            "Carbon",
+            "Daggett",
+            "Davis",
+            "Duchesne",
+            "Emery",
+            "Garfield",
+            "Grand",
+            "Iron",
+            "Juab",
+            "Kane",
+            "Millard",
+            "Morgan",
+            "Piute",
+            "Rich",
+            "Salt Lake",
+            "San Juan",
+            "Sanpete",
+            "Sevier",
+            "Summit",
+            "Tooele",
+            "Uintah",
+            "Utah",
+            "Wasatch",
+            "Washington",
+            "Wayne",
+            "Weber",
+            "Unknown/ Out of State"
+          )      ) 
+ 
+ Rdata$Type <- factor(
+  Rdata$Type,
+  levels = c(
+    "Bat",
+    "Cat",
+    "Dog",
+    "Other common rabies vectors",
+    "Other"
+  )
+)
+ 
+#reordering counties table 2 
+ batdata$County <- factor(
+          batdata$County,
+          levels = c(
+            "Bear River",
+            "Beaver",
+            "Box Elder",
+            "Cache",
+            "Carbon",
+            "Davis",
+            "Duchesne",
+            "Emery",
+            "Garfield",
+            "Grand",
+            "Iron",
+            "Juab",
+            "Kane",
+            "Millard",
+            "Morgan",
+            "Piute",
+            "Rich",
+            "Salt Lake",
+            "San Juan",
+            "Sanpete",
+            "Sevier",
+            "Summit",
+            "Tooele",
+            "Uintah",
+            "Utah",
+            "Wasatch",
+            "Washington",
+            "Wayne",
+            "Weber",
+            "Unknown/ Out of State"
+          )
+        )   
+
+ #reordering species table 2 
+ batdata$Species <- factor(
+  batdata$Species,
+  levels = c(
+    "Big Brown",
+    "Big Free-tailed",
+    "Hoary",
+    "Mexican free-tailed",
+    "Myotis",
+    "Pallid",
+    "Silver-haired",
+    "Townsend's Big-eared",
+    "Western Pipistrelle",
+    "Western Red",
+    "Unknown"
+  )
+)
+ 
+ 
+
+ 
+#mapdata
+health_districts <- st_read("HealthDistricts.shp")
+
+
+
+
+#Making health district data for map 
+Health_district <- Rdata %>%
+  mutate(
+    County = case_when(
+      County %in% c("Box Elder", "Cache", "Rich") ~ "Bear River",
+      County %in% c("Juab", "Millard", "Piute", "Sanpete", "Sevier", "Wayne") ~ "Central Utah",
+      County == "Davis" ~ "Davis County",
+      County == "Salt Lake" ~ "Salt Lake County",
+      County == "San Juan" ~ "San Juan",
+      County %in% c("Carbon", "Emery", "Grand") ~ "Southeast Utah",
+      County %in% c("Beaver", "Garfield", "Iron", "Kane", "Washington") ~ "Southwest Utah",
+      County == "Summit" ~ "Summit County",
+      County == "Tooele" ~ "Tooele County",
+      County %in% c("Daggett", "Duchesne", "Uintah") ~ "TriCounty",
+      County == "Utah" ~ "Utah County",
+      County == "Wasatch" ~ "Wasatch County",
+      County %in% c("Weber", "Morgan") ~ "Weber-Morgan",
+      TRUE ~ NA_character_   # For any unmatched counties
+    )
+  )
+  
+
+#renaming colomn to join data 
+Health_district <- Health_district %>% 
+  rename( 'DISTNAME' = 'County' )
+                  
+
+#aggrigating data for maps
+agg_data <- Health_district %>% 
+  group_by(DISTNAME) %>% 
+  summarise(
+    Total_Tests = n(),
+    Positive_Count = sum(Test_Results == 'Positive', na.rm = TRUE),
+    Percent_Positive = (Positive_Count / Total_Tests) * 100)
+
+
+
+
+
+# Making all county names lower case 
+health_districts$DISTNAME <- tolower(health_districts$DISTNAME)
+agg_data$DISTNAME <- tolower(agg_data$DISTNAME)
+
+
+
+#joining map data 
+Map_1 <- left_join(health_districts, agg_data, by = "DISTNAME")
+
+Map_1 <- st_as_sf(Map_1)
+
+
+#creating map table 
+
+
+#changing date variable to be be read as a date 
+Rdata <- Rdata %>%
+  mutate(Date_Submitted = as.Date(Date_Submitted, format = "%m/%d/%Y"))
+
+
+
+#Creating new data frame for bat species percentages 
+bat_data <- tribble(
+  ~Species,                 ~`% of all tested`, ~`% of all positives`, ~`Positivity Rate`,
+  "Big Brown",              15.3, 18.7, 17.4,
+  "Big free-tailed",         0.4,  0.0,  0.0,
+  "Hoary",                   1.9,  9.0, 67.9,
+  "Mexican free-tailed",    27.1, 35.9, 18.8,
+  "Myotis",                 29.6, 14.4,  6.9,
+  "Pallid",                  3.7,  3.3, 13.0,
+  "Silver-haired",          12.3,  9.6, 11.0,
+  "Townsend's Big-eared",    0.1,  0.0,  0.0,
+  "Western Pipistrelle",     4.9,  8.6, 25.0,
+  "Western Red",             0.6,  0.0,  0.0,
+  "Unknown",                 4.0,  0.5,  1.7
+)
+
+# Createing  data frame for positive results 
+positive_dates <- tribble(
+  ~Year, ~`First Positive`, ~`Last Positive`,
+  2024, "May 16", "Oct 04",
+  2023, "May 30", "Nov 08",
+  2022, "Jun 04", "Sep 20",
+  2021, "Jun 04", "Oct 19",
+  2020, "Jul 06", "Sep 30",
+  2019, "Jun 03", "Sep 26",
+  2018, "Jun 05", "Oct 09",
+  2017, "Apr 19", "Oct 24",
+  2016, "Jul 11", "Oct 18",
+  2015, "May 22", "Oct 20",
+  2014, "Mar 21", "Sep 26"
+)
+positive_dates %>%
+  arrange(desc(Year)) %>%  # optional: sort by most recent year
+  kbl(
+    caption = "Table 2. First and Last Rabies-Positive Bats by Year",
+    align = "ccc"
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  ) %>%
+  footnote(
+    general = "Dates represent the first and last detections of rabies-positive bats for each surveillance year.",
+    general_title = "Note: "
+  )
+
+
+
+```
+
+
+## Introduction 
+The Utah Department of Health and Human Services runs a rabies surveillance program that has collected the test results of animals sent into the Utah Public Health Lab for rabies testing. This data analysis uses the previous 11 years (2014-2024) of this collected data. There was 3655 animals tested and 214 of those animals came back positive for rabies giving rabies tests during this time period a positivity rate of 5.9%.
+
+
+
+
+## Table 1. All rabies lab results stratified by test results
+```{r echo=FALSE}
+#using furniture package to genrate a table
+DF <- table1(
+  Rdata,                      # Data frame
+  County, Type, Year, Month,    # Variable(s) to summarize                    
+  splitby = ~Test_Results,  # Stratify by MedMisExt
+  row_wise = TRUE,          # Show row percentages
+  total=TRUE
+)
+
+# HTML with kable
+kable(DF,
+      format = "html",) %>%
+  kable_styling(full_width = FALSE) %>%
+  row_spec(c(2,34,40,52), bold = TRUE) 
+
+
+```
+
+Table 1 was made by creating a new data set that was a filtered and cleaned version of the raw data set. The new data set was then put into this table, filtering for the factors that were most important for this analysis and stratified by test results. 18 data points are missing in this table do to missing values making the total 3637. All of the missing data were either negative, unsatisfactory or unknown results, all 214 positive results are accounted for in this table.
+
+
+Table 1 looks at 4 factors county that sent in the animal for testing, Type of animal that was sent in, Year the animal was sent in and month the animal was sent in. These data are stratified by the results of the rabies test.  211 of the 214 positive rabies results are bats meaning bats make up for about 98.6% of all positive rabies results in the past 11 years. However, there have been 3 positives that weren't bats with 1 skunk and 2 foxes making up the rest of the positives. This is why there is a category under animal type labeled 'Other common rabies vectors' that includes foxes, skunks and raccoons.
+
+
+
+
+## Table 2. All tested bats stratified by test results
+```{r echo=FALSE}
+
+DF2 <- table1(
+  batdata,                      # Data frame
+  County, Year, Month,Species,  # Variable(s) to summarize                    
+  splitby = ~Test_Results,  # Stratify by MedMisExt
+  row_wise = TRUE,          # Show row percentages
+  total=TRUE
+)
+
+kable(DF2,
+      format = "html",) %>%
+  kable_styling(full_width = FALSE) %>%
+  row_spec(c(2,33,45,58), bold = TRUE) 
+
+```
+
+Table 2 was created by making a new data set that filtered all test results to only show the results from bats. Then the table was created with this new data set and stratified by test results. There are 10 missing data points in this chart do to missing values but all 211 positive results are accounted for. 
+
+Table 2 is designed much the same as table 1 except we are only looking at data from bats tested for rabies. Instead of having type of animal as a factor it has species of bat. There was 1533 bats sent in for testing with 211 of them coming back positive giving bats a positivity rate of 13.8% during this time period. 
+
+
+
+## Table 3. Bat species demograghics table 
+```{r echo=FALSE, out.width='40%' }
+knitr::include_graphics("Screenshot 2025-10-29 214607.png")
+
+
+
+
+
+```
+
+Table 3 was created by taking data from the table 2 data set and organizing it into a spreadsheet. The 10 tests that were lost in table 2 do to missing values were added back into this chart and used for percentages. All percentages in this chart were calculated by hand.
+
+Table 3 allows us to zoom in on what bat species make up our total bats tested and total bats that came back positive. All the percentages in the chart are proportions of the totals at the bottom. All the percentages have been rounded to the nearest tenth of a percent. We can see in the table the most common bats being tested are Myotis (28.4%), Mexican free-tailed (26.0%) and Big Brown (14.6%). We see the same top 3 species make up the most positives except in a different order with with Mexican free-tailed (35.5%) being number 1, Big Brown (18.5%) as number 2 and Myotis (14.2%) at number 3.
+
+
+
+
+## Table 4. First and last recorded positive rabies result each year
+```{r echo=FALSE}
+positive_dates %>%
+  arrange (Year) %>%  
+  kbl(
+    align = "ccc"
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  )
+
+```
+
+Table 4 was made by creating a data frame of only positive test results and filtering dates from oldest to newest. The earliest and latest dates were then filtered into a separate data set that was organized into this table.
+
+Table 4 shows us the first and last date there was a positive rabies test result in each year of the data set. The earliest positive rabies test result in the data set is a skunk on March 21 (2014) and the latest positive was a bat on November 8th (2023). The earliest bat to come back positive in the data set is April 19th (2017).
+
+
+
+
+## Map 1. Positive rabies test count by health district
+```{r echo=FALSE}
+
+
+Map_1 <- Map_1 %>%
+  mutate(
+    Positive_Display = ifelse(Positive_Count == 0, NA, Positive_Count),  # NA for gradient
+    Zero_Flag = ifelse(Positive_Count == 0, "Zero", "Positive")         # for legend
+  )
+
+# Step 2: Plot
+ggplot(Map_1) +
+  # Fill gradient for positive counts
+  geom_sf(aes(fill = Positive_Display), color = "white") +
+  # Overlay 0 values with a separate color
+  geom_sf(data = Map_1 %>% filter(Positive_Count == 0),
+          fill = "grey", color = "white") +
+  # Gradient for positives
+  scale_fill_gradient(low = "lightblue", high = "darkblue", na.value = NA,
+      name = "Positive Count", breaks = pretty_breaks(n = 5)) +
+  theme_minimal()
+
+
+
+
+
+```
+
+Map 1 was made by creating a new data frame that organized the county column into health districts. The new data frame was then aggregated by health district and then joined with a shape file that includes the geometric data of Utah health districts. This map uses the the column that shows positive result counts by district as its data filler. The data set is filtered down to 3526 total test results and 212 positive results do to some of the data not having the geographic data necessary for mapping.
+
+
+## Map 2. Rabies test positivity rate by health district 
+```{r echo=FALSE}
+# Step 1: Separate zeros from positive percentages
+Map_1 <- Map_1 %>%
+  mutate(
+    Percent_Display = ifelse(Percent_Positive == 0, NA, Percent_Positive)  # NA for gradient
+  )
+
+# Step 2: Plot
+ggplot(Map_1) +
+  # Gradient fill for positive percentages
+  geom_sf(aes(fill = Percent_Display), color = "white") +
+  # Overlay 0% values with a distinct color
+  geom_sf(data = Map_1 %>% filter(Positive_Count == 0),
+          fill = "grey", color = "white") +
+  # Gradient for positives
+  scale_fill_gradient(low = "lightblue", high = "darkblue", na.value = NA,
+                      name = "Positive percentage", breaks = pretty_breaks(n = 5))+ 
+  theme_minimal()
+```
+
+Map 2 uses the same data set as Map 1 except instead of using the positive count column as its data filler it uses the percent positivity column. This column was made by creating a simple calculation that divides positive counts by total tests of each district and making it into it column in the data set. 
+
+
+Map 1 and Map 2 give us an easy visual of how many positive results we are getting per health district (Map 1) and what percentage of their tests are coming back positive (Map 2). In Map 1 we see higher counts from districts with higher population such as Salt lake (54), Davis(33), and Southwest(29). When it comes to the positivity rate we see higher percentages from southern Utah districts such as Southeast (12.0%), Central(11.1%) and Southwest(10.7%). Southwest is the only district that is in both the top 3 highest for positive counts and top 3 highest for positivity rate.
+
+
+
+## Table 5. Health district data used for maps
+```{r echo=FALSE}
+#creating data frame for table 
+map_table <- Map_1 %>%
+    st_drop_geometry() %>%
+  select(DISTNAME, Total_Tests, Positive_Count, Percent_Positive)
+
+#Renaming map data  
+map_table <- map_table %>%
+  rename( 'District' = 'DISTNAME' )
+
+map_table <- map_table %>%
+  rename( 'Tests' = 'Total_Tests' )
+
+map_table <- map_table %>%
+  rename('Positives' ='Positive_Count')
+
+map_table <- map_table %>%
+  rename('Rate' = 'Percent_Positive' )
+
+#making the table 
+map_table %>%
+  kable(
+    align = c("l", "r", "r", "r")
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed")
+  )
+```
+
+Table 5 was made with the data set used to create the above maps. The geometric data and other data not used in the maps were removed for clarity. 
+
+Table 5 gives more clarity and the specifics of the data for Map 1 and Map 2. Rate shows the positivity rate, Tests shows the total number of tested animals from that district and Positives shows the total amount of positive rabies results from that district.
+
+
+
+## Chart 1. 2024 vs 10 year average of positive rabies results by MMWR week
+
+```{r}
+knitr::include_graphics("Screenshot 2025-10-30 151424.png")
+```
+
+Chart 1 was made by the data being filtered to only positive results and organizing that data by week and year.Then the weeks were organized into MMWR weeks starting at week 12, since that was the earliest recorded positive in the data set, and ending at week 45, since this was the latest recorded positive in the data set. The data was then aggregated by MMWR weeks and then put into a spreadsheet. A 10 year average was created by taking all aggregated data from 2014-2023 and creating an average for each individual MMWR week by year to compare to the 2024 count.
+
+
+
+## Chart 2. 2024 vs 10 year average rabies results year to date count by MMWR week
+
+```{r}
+knitr::include_graphics("Screenshot 2025-10-30 151442.png")
+```
+
+Chart 2 was created using the same data set that Chart 1 uses except instead of using straight counts like chart 1 it uses a year to date count. The year to date count was calculated in the spreadsheet by taking the counts of 2024 and and the 10 year average and using a cumulative sum function to create two new corresponding YTD columns.
+
+
+Chart 1 and Chart 2 clearly show us that 2024 has far more rabies positives then the average of the last 10 years. In fact, 2024 has the most positive rabies result of any year in the data set with a total of 31 positives. The 10 year average has a total average positive count of 18.3 with the highest years being 2017 (23) and 2023 (23) and the lowest being 2019 (12). One thing worth highlighting is that although 2024 seems to shoot up in the amount of positive results this could partially be do to the fact that more animals are being sent in for testing. In Table 1 we see 2024 has the most animals tested of any year in the data set at 484 tests. 
+
